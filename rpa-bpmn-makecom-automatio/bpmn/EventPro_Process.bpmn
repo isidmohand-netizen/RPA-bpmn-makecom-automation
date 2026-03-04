@@ -1,0 +1,351 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  id="Definitions_1"
+                  targetNamespace="http://bpmn.io/schema/bpmn">
+
+  <bpmn:collaboration id="Collab">
+    <bpmn:participant id="Pool_Participant" name="Participant"                    processRef="P_Part"/>
+    <bpmn:participant id="Pool_EventSys"    name="Event Management System"        processRef="P_Evt"/>
+    <bpmn:participant id="Pool_Cloud"       name="Cloud Services (OneDrive, Google Docs, Outlook)" processRef="P_Cloud"/>
+
+    <!-- 7 MESSAGE FLOWS — Task→Task or Task→MessageStartEvent ONLY -->
+    <bpmn:messageFlow id="MF1" name="Registration Data"    sourceRef="P_Register"     targetRef="E_Start"/>
+    <bpmn:messageFlow id="MF2" name="Rejection Notice"     sourceRef="E_SendReject"   targetRef="P_RcvEmail"/>
+    <bpmn:messageFlow id="MF3" name="QR + Pass Data"       sourceRef="E_GenQR"        targetRef="CL_Start"/>
+    <bpmn:messageFlow id="MF4" name="Access Pass Email"    sourceRef="CL_SendEmail"   targetRef="P_RcvEmail"/>
+    <bpmn:messageFlow id="MF5" name="QR Code Scan"         sourceRef="P_ShowQR"       targetRef="E_ScanQR"/>
+    <bpmn:messageFlow id="MF6" name="Entry Granted"        sourceRef="E_Grant"        targetRef="P_Enter"/>
+  </bpmn:collaboration>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- PARTICIPANT — simple linear + 1 gateway         -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <bpmn:process id="P_Part" isExecutable="false">
+    <bpmn:startEvent id="P_Start" name="Wants to attend event">
+      <bpmn:outgoing>pf1</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:task id="P_Register" name="Fill registration form">
+      <bpmn:incoming>pf1</bpmn:incoming><bpmn:outgoing>pf2</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="P_RcvEmail" name="Receive email response">
+      <bpmn:incoming>pf2</bpmn:incoming><bpmn:outgoing>pf3</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:exclusiveGateway id="P_GW" name="Registration confirmed?">
+      <bpmn:incoming>pf3</bpmn:incoming><bpmn:outgoing>pf4y</bpmn:outgoing><bpmn:outgoing>pf4n</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:endEvent id="P_EndFail" name="Registration rejected">
+      <bpmn:incoming>pf4n</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:task id="P_ShowQR" name="Present QR code at entrance">
+      <bpmn:incoming>pf4y</bpmn:incoming><bpmn:outgoing>pf5</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="P_Enter" name="Enter event">
+      <bpmn:incoming>pf5</bpmn:incoming><bpmn:outgoing>pf6</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:endEvent id="P_EndOK" name="Attending event">
+      <bpmn:incoming>pf6</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="pf1"  sourceRef="P_Start"     targetRef="P_Register"/>
+    <bpmn:sequenceFlow id="pf2"  sourceRef="P_Register"  targetRef="P_RcvEmail"/>
+    <bpmn:sequenceFlow id="pf3"  sourceRef="P_RcvEmail"  targetRef="P_GW"/>
+    <bpmn:sequenceFlow id="pf4y" name="Yes" sourceRef="P_GW" targetRef="P_ShowQR"/>
+    <bpmn:sequenceFlow id="pf4n" name="No"  sourceRef="P_GW" targetRef="P_EndFail"/>
+    <bpmn:sequenceFlow id="pf5"  sourceRef="P_ShowQR"    targetRef="P_Enter"/>
+    <bpmn:sequenceFlow id="pf6"  sourceRef="P_Enter"     targetRef="P_EndOK"/>
+  </bpmn:process>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- EVENT MANAGEMENT SYSTEM — 2 lanes               -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <bpmn:process id="P_Evt" isExecutable="false">
+    <bpmn:laneSet id="LS">
+      <bpmn:lane id="Lane_Reg" name="Registration Platform (Automated)">
+        <bpmn:flowNodeRef>E_Start</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>E_AddDB</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_Valid</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>E_SendReject</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>E_EndReject</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>E_SetSlot</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_Slot</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>E_SlotMorn</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>E_SlotAftn</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>E_SlotFull</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_SlotJoin</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>E_GenQR</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>E_UpdateStatus</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>E_EndOK</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_CI" name="On-Site Check-In System (Automated)">
+        <bpmn:flowNodeRef>E_ScanQR</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>E_SearchDB</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_Found</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>E_CheckTime</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_TimeOK</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>E_MarkIn</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>E_Grant</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>E_EndGranted</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>E_Deny</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>E_EndDenied</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- ─── Registration Platform Lane ─── -->
+    <bpmn:startEvent id="E_Start" name="Form submission received">
+      <bpmn:outgoing>ef1</bpmn:outgoing>
+      <bpmn:messageEventDefinition/>
+    </bpmn:startEvent>
+    <bpmn:task id="E_AddDB" name="Add registration to Google Sheet">
+      <bpmn:incoming>ef1</bpmn:incoming><bpmn:outgoing>ef2</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:exclusiveGateway id="GW_Valid" name="Registration valid?">
+      <bpmn:incoming>ef2</bpmn:incoming><bpmn:outgoing>ef3y</bpmn:outgoing><bpmn:outgoing>ef3n</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:task id="E_SendReject" name="Send rejection email">
+      <bpmn:incoming>ef3n</bpmn:incoming><bpmn:outgoing>ef3e</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:endEvent id="E_EndReject" name="Rejected">
+      <bpmn:incoming>ef3e</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:task id="E_SetSlot" name="Determine time slot">
+      <bpmn:incoming>ef3y</bpmn:incoming><bpmn:outgoing>ef4</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:exclusiveGateway id="GW_Slot" name="Which time slot?">
+      <bpmn:incoming>ef4</bpmn:incoming><bpmn:outgoing>ef5a</bpmn:outgoing><bpmn:outgoing>ef5b</bpmn:outgoing><bpmn:outgoing>ef5c</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:task id="E_SlotMorn" name="Set valid hours: Morning">
+      <bpmn:incoming>ef5a</bpmn:incoming><bpmn:outgoing>ef6a</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="E_SlotAftn" name="Set valid hours: Afternoon">
+      <bpmn:incoming>ef5b</bpmn:incoming><bpmn:outgoing>ef6b</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="E_SlotFull" name="Set valid hours: All Day">
+      <bpmn:incoming>ef5c</bpmn:incoming><bpmn:outgoing>ef6c</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:exclusiveGateway id="GW_SlotJoin" name="">
+      <bpmn:incoming>ef6a</bpmn:incoming><bpmn:incoming>ef6b</bpmn:incoming><bpmn:incoming>ef6c</bpmn:incoming><bpmn:outgoing>ef7</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:task id="E_GenQR" name="Generate entry and exit QR codes">
+      <bpmn:incoming>ef7</bpmn:incoming><bpmn:outgoing>ef8</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="E_UpdateStatus" name="Update registration status in sheet">
+      <bpmn:incoming>ef8</bpmn:incoming><bpmn:outgoing>ef9</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:endEvent id="E_EndOK" name="Registration complete">
+      <bpmn:incoming>ef9</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ─── Check-In Lane ─── -->
+    <bpmn:task id="E_ScanQR" name="Receive QR code scan (webhook)">
+      <bpmn:outgoing>ec1</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="E_SearchDB" name="Search attendee in database">
+      <bpmn:incoming>ec1</bpmn:incoming><bpmn:outgoing>ec2</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:exclusiveGateway id="GW_Found" name="Registration found?">
+      <bpmn:incoming>ec2</bpmn:incoming><bpmn:outgoing>ec3y</bpmn:outgoing><bpmn:outgoing>ec3n</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:task id="E_CheckTime" name="Verify time slot validity">
+      <bpmn:incoming>ec3y</bpmn:incoming><bpmn:outgoing>ec4</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:exclusiveGateway id="GW_TimeOK" name="Within valid hours?">
+      <bpmn:incoming>ec4</bpmn:incoming><bpmn:outgoing>ec5y</bpmn:outgoing><bpmn:outgoing>ec5n</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:task id="E_MarkIn" name="Update check-in status and count">
+      <bpmn:incoming>ec5y</bpmn:incoming><bpmn:outgoing>ec6</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="E_Grant" name="Send Entry Granted response">
+      <bpmn:incoming>ec6</bpmn:incoming><bpmn:outgoing>ec7</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:endEvent id="E_EndGranted" name="Entry granted">
+      <bpmn:incoming>ec7</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:task id="E_Deny" name="Send Entry Denied response">
+      <bpmn:incoming>ec3n</bpmn:incoming><bpmn:incoming>ec5n</bpmn:incoming><bpmn:outgoing>ec8</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:endEvent id="E_EndDenied" name="Entry denied">
+      <bpmn:incoming>ec8</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows — Registration -->
+    <bpmn:sequenceFlow id="ef1"  sourceRef="E_Start"      targetRef="E_AddDB"/>
+    <bpmn:sequenceFlow id="ef2"  sourceRef="E_AddDB"      targetRef="GW_Valid"/>
+    <bpmn:sequenceFlow id="ef3y" name="Yes" sourceRef="GW_Valid" targetRef="E_SetSlot"/>
+    <bpmn:sequenceFlow id="ef3n" name="No"  sourceRef="GW_Valid" targetRef="E_SendReject"/>
+    <bpmn:sequenceFlow id="ef3e" sourceRef="E_SendReject"  targetRef="E_EndReject"/>
+    <bpmn:sequenceFlow id="ef4"  sourceRef="E_SetSlot"    targetRef="GW_Slot"/>
+    <bpmn:sequenceFlow id="ef5a" name="Morning"   sourceRef="GW_Slot" targetRef="E_SlotMorn"/>
+    <bpmn:sequenceFlow id="ef5b" name="Afternoon"  sourceRef="GW_Slot" targetRef="E_SlotAftn"/>
+    <bpmn:sequenceFlow id="ef5c" name="All Day"    sourceRef="GW_Slot" targetRef="E_SlotFull"/>
+    <bpmn:sequenceFlow id="ef6a" sourceRef="E_SlotMorn"   targetRef="GW_SlotJoin"/>
+    <bpmn:sequenceFlow id="ef6b" sourceRef="E_SlotAftn"   targetRef="GW_SlotJoin"/>
+    <bpmn:sequenceFlow id="ef6c" sourceRef="E_SlotFull"   targetRef="GW_SlotJoin"/>
+    <bpmn:sequenceFlow id="ef7"  sourceRef="GW_SlotJoin"  targetRef="E_GenQR"/>
+    <bpmn:sequenceFlow id="ef8"  sourceRef="E_GenQR"      targetRef="E_UpdateStatus"/>
+    <bpmn:sequenceFlow id="ef9"  sourceRef="E_UpdateStatus" targetRef="E_EndOK"/>
+    <!-- Sequence Flows — Check-In -->
+    <bpmn:sequenceFlow id="ec1"  sourceRef="E_ScanQR"   targetRef="E_SearchDB"/>
+    <bpmn:sequenceFlow id="ec2"  sourceRef="E_SearchDB" targetRef="GW_Found"/>
+    <bpmn:sequenceFlow id="ec3y" name="Yes" sourceRef="GW_Found"  targetRef="E_CheckTime"/>
+    <bpmn:sequenceFlow id="ec3n" name="No"  sourceRef="GW_Found"  targetRef="E_Deny"/>
+    <bpmn:sequenceFlow id="ec4"  sourceRef="E_CheckTime" targetRef="GW_TimeOK"/>
+    <bpmn:sequenceFlow id="ec5y" name="Yes" sourceRef="GW_TimeOK" targetRef="E_MarkIn"/>
+    <bpmn:sequenceFlow id="ec5n" name="No"  sourceRef="GW_TimeOK" targetRef="E_Deny"/>
+    <bpmn:sequenceFlow id="ec6"  sourceRef="E_MarkIn"   targetRef="E_Grant"/>
+    <bpmn:sequenceFlow id="ec7"  sourceRef="E_Grant"    targetRef="E_EndGranted"/>
+    <bpmn:sequenceFlow id="ec8"  sourceRef="E_Deny"     targetRef="E_EndDenied"/>
+
+    <!-- 5 Data Artifacts -->
+    <bpmn:dataObjectReference id="DO_Form" name="Registration Form Data" dataObjectRef="D1"/><bpmn:dataObject id="D1"/>
+    <bpmn:dataObjectReference id="DO_QR" name="QR Codes (Entry + Exit)" dataObjectRef="D2"/><bpmn:dataObject id="D2"/>
+    <bpmn:dataObjectReference id="DO_Pass" name="Access Pass (PDF)" dataObjectRef="D3"/><bpmn:dataObject id="D3"/>
+    <bpmn:dataObjectReference id="DO_Record" name="Attendee Record" dataObjectRef="D4"/><bpmn:dataObject id="D4"/>
+    <bpmn:dataStoreReference id="DS_Sheet" name="Google Sheets Database"/>
+  </bpmn:process>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- CLOUD SERVICES — OneDrive + Google Docs + Email -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <bpmn:process id="P_Cloud" isExecutable="false">
+    <bpmn:startEvent id="CL_Start" name="QR data received">
+      <bpmn:outgoing>cf1</bpmn:outgoing>
+      <bpmn:messageEventDefinition/>
+    </bpmn:startEvent>
+    <bpmn:task id="CL_Upload" name="Upload QR images to OneDrive">
+      <bpmn:incoming>cf1</bpmn:incoming><bpmn:outgoing>cf2</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="CL_CreatePass" name="Create access pass from template">
+      <bpmn:incoming>cf2</bpmn:incoming><bpmn:outgoing>cf3</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="CL_SendEmail" name="Send access pass email via Outlook">
+      <bpmn:incoming>cf3</bpmn:incoming><bpmn:outgoing>cf4</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:endEvent id="CL_End" name="Pass delivered">
+      <bpmn:incoming>cf4</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="cf1" sourceRef="CL_Start"     targetRef="CL_Upload"/>
+    <bpmn:sequenceFlow id="cf2" sourceRef="CL_Upload"    targetRef="CL_CreatePass"/>
+    <bpmn:sequenceFlow id="cf3" sourceRef="CL_CreatePass" targetRef="CL_SendEmail"/>
+    <bpmn:sequenceFlow id="cf4" sourceRef="CL_SendEmail"  targetRef="CL_End"/>
+  </bpmn:process>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- DIAGRAM LAYOUT                                  -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <bpmndi:BPMNDiagram id="D">
+    <bpmndi:BPMNPlane id="PL" bpmnElement="Collab">
+
+      <!-- PARTICIPANT POOL (top) -->
+      <bpmndi:BPMNShape id="sp1" bpmnElement="Pool_Participant" isHorizontal="true"><dc:Bounds x="100" y="20" width="1500" height="180"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="a1" bpmnElement="P_Start"><dc:Bounds x="170" y="92" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="a2" bpmnElement="P_Register"><dc:Bounds x="240" y="70" width="130" height="80"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="a3" bpmnElement="P_RcvEmail"><dc:Bounds x="400" y="70" width="130" height="80"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="a4" bpmnElement="P_GW" isMarkerVisible="true"><dc:Bounds x="565" y="85" width="50" height="50"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="a5" bpmnElement="P_EndFail"><dc:Bounds x="572" y="155" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="a6" bpmnElement="P_ShowQR"><dc:Bounds x="650" y="70" width="160" height="80"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="a7" bpmnElement="P_Enter"><dc:Bounds x="850" y="50" width="100" height="60"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="a9" bpmnElement="P_EndOK"><dc:Bounds x="990" y="62" width="36" height="36"/></bpmndi:BPMNShape>
+
+      <bpmndi:BPMNEdge id="x1" bpmnElement="pf1"><di:waypoint x="206" y="110"/><di:waypoint x="240" y="110"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="x2" bpmnElement="pf2"><di:waypoint x="370" y="110"/><di:waypoint x="400" y="110"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="x3" bpmnElement="pf3"><di:waypoint x="530" y="110"/><di:waypoint x="565" y="110"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="x4y" bpmnElement="pf4y"><di:waypoint x="615" y="110"/><di:waypoint x="650" y="110"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="x4n" bpmnElement="pf4n"><di:waypoint x="590" y="135"/><di:waypoint x="590" y="155"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="x5" bpmnElement="pf5"><di:waypoint x="810" y="110"/><di:waypoint x="830" y="110"/><di:waypoint x="830" y="80"/><di:waypoint x="850" y="80"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="x6" bpmnElement="pf6"><di:waypoint x="950" y="80"/><di:waypoint x="990" y="80"/></bpmndi:BPMNEdge>
+
+      <!-- EVENT SYSTEM POOL (middle) -->
+      <bpmndi:BPMNShape id="sp2" bpmnElement="Pool_EventSys" isHorizontal="true"><dc:Bounds x="100" y="240" width="1500" height="480"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="sl1" bpmnElement="Lane_Reg" isHorizontal="true"><dc:Bounds x="130" y="240" width="1470" height="280"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="sl2" bpmnElement="Lane_CI" isHorizontal="true"><dc:Bounds x="130" y="520" width="1470" height="200"/></bpmndi:BPMNShape>
+
+      <!-- Registration lane -->
+      <bpmndi:BPMNShape id="b1" bpmnElement="E_Start"><dc:Bounds x="170" y="362" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="b2" bpmnElement="E_AddDB"><dc:Bounds x="240" y="340" width="120" height="70"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="b3" bpmnElement="GW_Valid" isMarkerVisible="true"><dc:Bounds x="390" y="350" width="50" height="50"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="b4" bpmnElement="E_SendReject"><dc:Bounds x="375" y="260" width="80" height="55"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="b5" bpmnElement="E_EndReject"><dc:Bounds x="485" y="270" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="b6" bpmnElement="E_SetSlot"><dc:Bounds x="475" y="340" width="110" height="70"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="b7" bpmnElement="GW_Slot" isMarkerVisible="true"><dc:Bounds x="615" y="350" width="50" height="50"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="b8" bpmnElement="E_SlotMorn"><dc:Bounds x="700" y="270" width="100" height="50"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="b9" bpmnElement="E_SlotAftn"><dc:Bounds x="700" y="350" width="100" height="50"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="b10" bpmnElement="E_SlotFull"><dc:Bounds x="700" y="430" width="100" height="50"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="b11" bpmnElement="GW_SlotJoin" isMarkerVisible="true"><dc:Bounds x="835" y="350" width="50" height="50"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="b12" bpmnElement="E_GenQR"><dc:Bounds x="920" y="340" width="140" height="70"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="b13" bpmnElement="E_UpdateStatus"><dc:Bounds x="1095" y="340" width="130" height="70"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="b14" bpmnElement="E_EndOK"><dc:Bounds x="1260" y="357" width="36" height="36"/></bpmndi:BPMNShape>
+
+      <!-- Check-In lane -->
+      <bpmndi:BPMNShape id="c1" bpmnElement="E_ScanQR"><dc:Bounds x="620" y="570" width="130" height="65"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="c2" bpmnElement="E_SearchDB"><dc:Bounds x="780" y="570" width="130" height="65"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="c3" bpmnElement="GW_Found" isMarkerVisible="true"><dc:Bounds x="940" y="577" width="50" height="50"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="c4" bpmnElement="E_CheckTime"><dc:Bounds x="1020" y="570" width="110" height="65"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="c5" bpmnElement="GW_TimeOK" isMarkerVisible="true"><dc:Bounds x="1160" y="577" width="50" height="50"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="c6" bpmnElement="E_MarkIn"><dc:Bounds x="1240" y="540" width="120" height="50"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="c7" bpmnElement="E_Grant"><dc:Bounds x="1390" y="540" width="100" height="50"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="c8" bpmnElement="E_EndGranted"><dc:Bounds x="1520" y="547" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="c9" bpmnElement="E_Deny"><dc:Bounds x="1240" y="640" width="120" height="50"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="c10" bpmnElement="E_EndDenied"><dc:Bounds x="1390" y="647" width="36" height="36"/></bpmndi:BPMNShape>
+
+      <!-- Data artifacts -->
+      <bpmndi:BPMNShape id="d1" bpmnElement="DO_Form"><dc:Bounds x="262" y="430" width="36" height="50"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="d2" bpmnElement="DO_QR"><dc:Bounds x="962" y="430" width="36" height="50"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="d3" bpmnElement="DO_Pass"><dc:Bounds x="1112" y="430" width="36" height="50"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="d4" bpmnElement="DO_Record"><dc:Bounds x="822" y="650" width="36" height="50"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="d5" bpmnElement="DS_Sheet"><dc:Bounds x="810" y="530" width="50" height="50"/></bpmndi:BPMNShape>
+
+      <!-- Registration edges -->
+      <bpmndi:BPMNEdge id="y1" bpmnElement="ef1"><di:waypoint x="206" y="380"/><di:waypoint x="240" y="375"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="y2" bpmnElement="ef2"><di:waypoint x="360" y="375"/><di:waypoint x="390" y="375"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="y3y" bpmnElement="ef3y"><di:waypoint x="440" y="375"/><di:waypoint x="475" y="375"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="y3n" bpmnElement="ef3n"><di:waypoint x="415" y="350"/><di:waypoint x="415" y="315"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="y3e" bpmnElement="ef3e"><di:waypoint x="455" y="288"/><di:waypoint x="485" y="288"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="y4" bpmnElement="ef4"><di:waypoint x="585" y="375"/><di:waypoint x="615" y="375"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="y5a" bpmnElement="ef5a"><di:waypoint x="640" y="350"/><di:waypoint x="640" y="295"/><di:waypoint x="700" y="295"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="y5b" bpmnElement="ef5b"><di:waypoint x="665" y="375"/><di:waypoint x="700" y="375"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="y5c" bpmnElement="ef5c"><di:waypoint x="640" y="400"/><di:waypoint x="640" y="455"/><di:waypoint x="700" y="455"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="y6a" bpmnElement="ef6a"><di:waypoint x="800" y="295"/><di:waypoint x="860" y="350"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="y6b" bpmnElement="ef6b"><di:waypoint x="800" y="375"/><di:waypoint x="835" y="375"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="y6c" bpmnElement="ef6c"><di:waypoint x="800" y="455"/><di:waypoint x="860" y="400"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="y7" bpmnElement="ef7"><di:waypoint x="885" y="375"/><di:waypoint x="920" y="375"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="y8" bpmnElement="ef8"><di:waypoint x="1060" y="375"/><di:waypoint x="1095" y="375"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="y9" bpmnElement="ef9"><di:waypoint x="1225" y="375"/><di:waypoint x="1260" y="375"/></bpmndi:BPMNEdge>
+      <!-- Check-In edges -->
+      <bpmndi:BPMNEdge id="z1" bpmnElement="ec1"><di:waypoint x="750" y="603"/><di:waypoint x="780" y="603"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="z2" bpmnElement="ec2"><di:waypoint x="910" y="603"/><di:waypoint x="940" y="602"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="z3y" bpmnElement="ec3y"><di:waypoint x="990" y="602"/><di:waypoint x="1020" y="602"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="z3n" bpmnElement="ec3n"><di:waypoint x="965" y="627"/><di:waypoint x="965" y="665"/><di:waypoint x="1240" y="665"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="z4" bpmnElement="ec4"><di:waypoint x="1130" y="602"/><di:waypoint x="1160" y="602"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="z5y" bpmnElement="ec5y"><di:waypoint x="1185" y="577"/><di:waypoint x="1185" y="565"/><di:waypoint x="1240" y="565"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="z5n" bpmnElement="ec5n"><di:waypoint x="1185" y="627"/><di:waypoint x="1185" y="665"/><di:waypoint x="1240" y="665"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="z6" bpmnElement="ec6"><di:waypoint x="1360" y="565"/><di:waypoint x="1390" y="565"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="z7" bpmnElement="ec7"><di:waypoint x="1490" y="565"/><di:waypoint x="1520" y="565"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="z8" bpmnElement="ec8"><di:waypoint x="1360" y="665"/><di:waypoint x="1390" y="665"/></bpmndi:BPMNEdge>
+
+      <!-- CLOUD SERVICES POOL (bottom) -->
+      <bpmndi:BPMNShape id="sp3" bpmnElement="Pool_Cloud" isHorizontal="true"><dc:Bounds x="100" y="760" width="1200" height="140"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="g1" bpmnElement="CL_Start"><dc:Bounds x="170" y="812" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="g2" bpmnElement="CL_Upload"><dc:Bounds x="260" y="790" width="140" height="70"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="g3" bpmnElement="CL_CreatePass"><dc:Bounds x="450" y="790" width="150" height="70"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="g4" bpmnElement="CL_SendEmail"><dc:Bounds x="650" y="790" width="160" height="70"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="g5" bpmnElement="CL_End"><dc:Bounds x="860" y="812" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="w1" bpmnElement="cf1"><di:waypoint x="206" y="830"/><di:waypoint x="260" y="825"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="w2" bpmnElement="cf2"><di:waypoint x="400" y="825"/><di:waypoint x="450" y="825"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="w3" bpmnElement="cf3"><di:waypoint x="600" y="825"/><di:waypoint x="650" y="825"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="w4" bpmnElement="cf4"><di:waypoint x="810" y="825"/><di:waypoint x="860" y="830"/></bpmndi:BPMNEdge>
+
+      <!-- MESSAGE FLOWS -->
+      <bpmndi:BPMNEdge id="m1" bpmnElement="MF1"><di:waypoint x="305" y="150"/><di:waypoint x="188" y="362"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="m2" bpmnElement="MF2"><di:waypoint x="415" y="260"/><di:waypoint x="465" y="150"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="m3" bpmnElement="MF3"><di:waypoint x="990" y="410"/><di:waypoint x="188" y="812"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="m4" bpmnElement="MF4"><di:waypoint x="730" y="790"/><di:waypoint x="465" y="150"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="m5" bpmnElement="MF5"><di:waypoint x="730" y="150"/><di:waypoint x="685" y="570"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="m6" bpmnElement="MF6"><di:waypoint x="1440" y="540"/><di:waypoint x="900" y="110"/></bpmndi:BPMNEdge>
+
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
